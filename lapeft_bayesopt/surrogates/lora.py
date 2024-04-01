@@ -188,6 +188,7 @@ class LAPEFTBayesOptLoRA(LAPEFTBayesOpt):
                 hessian_structure=cfg.hess_factorization,
                 sigma_noise=1 if cfg.noise_var is None else math.sqrt(cfg.noise_var),
                 last_layer_name=cfg.last_layer_name,
+                backend=cfg.hessian_backend
             )
         else:
             self.bnn = Laplace(
@@ -195,7 +196,8 @@ class LAPEFTBayesOptLoRA(LAPEFTBayesOpt):
                 likelihood='regression',
                 subset_of_weights=cfg.subset_of_weights,
                 hessian_structure=cfg.hess_factorization,
-                sigma_noise=1 if cfg.noise_var is None else math.sqrt(cfg.noise_var)
+                sigma_noise=1 if cfg.noise_var is None else math.sqrt(cfg.noise_var),
+                backend=cfg.hessian_backend
             )
         self.bnn.fit(train_loader)
 
