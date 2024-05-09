@@ -20,15 +20,26 @@ class RedoxDataProcessor(DataProcessor):
 
     Objective: Minimize Ered (secondary objective: minimize Gsol)
     """
+
     def __init__(self, prompt_builder, tokenizer):
-        super().__init__(prompt_builder=prompt_builder, num_outputs=1, tokenizer=tokenizer)
-        self.x_col = 'SMILES'
-        self.target_col = 'Ered'
-        self.obj_str = 'redox potential'
+        super().__init__(
+            prompt_builder=prompt_builder, num_outputs=1, tokenizer=tokenizer
+        )
+        self.x_col = "SMILES"
+        self.target_col = "Ered"
+        self.obj_str = "redox potential"
         self.maximization = False
 
     def _get_columns_to_remove(self) -> List[str]:
-        return ['Entry Number', 'File Name', 'SMILES', 'HOMO', 'Ered', 'Gsol', 'Absorption Wavelength']
+        return [
+            "Entry Number",
+            "File Name",
+            "SMILES",
+            "HOMO",
+            "Ered",
+            "Gsol",
+            "Absorption Wavelength",
+        ]
 
 
 class MultiRedoxDataProcessor(DataProcessor):
@@ -49,12 +60,23 @@ class MultiRedoxDataProcessor(DataProcessor):
 
     Objective: Minimize Ered, minimize Gsol
     """
+
     def __init__(self, prompt_builder, tokenizer):
-        super().__init__(prompt_builder=prompt_builder, num_outputs=2, tokenizer=tokenizer)
-        self.x_col = 'SMILES'
-        self.target_col = ['Ered', 'Gsol']
-        self.obj_str = 'redox potential and solvation energy'
+        super().__init__(
+            prompt_builder=prompt_builder, num_outputs=2, tokenizer=tokenizer
+        )
+        self.x_col = "SMILES"
+        self.target_col = ["Ered", "Gsol"]
+        self.obj_str = "redox potential and solvation energy"
         self.maximization = [False, False]
 
     def _get_columns_to_remove(self) -> List[str]:
-        return ['Entry Number', 'File Name', 'SMILES', 'HOMO', 'Ered', 'Gsol', 'Absorption Wavelength']
+        return [
+            "Entry Number",
+            "File Name",
+            "SMILES",
+            "HOMO",
+            "Ered",
+            "Gsol",
+            "Absorption Wavelength",
+        ]

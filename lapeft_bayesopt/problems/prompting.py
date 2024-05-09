@@ -1,4 +1,3 @@
-
 class PromptBuilder:
     """
     Base class for building prompts. To be derived (per dataset/problem if needed).
@@ -8,6 +7,7 @@ class PromptBuilder:
     kind: str
         The name of the prompt type
     """
+
     def __init__(self, kind: str):
         self.kind = kind
 

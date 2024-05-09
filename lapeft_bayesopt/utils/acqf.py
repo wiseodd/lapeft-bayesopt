@@ -3,8 +3,7 @@ import torch.distributions as dists
 
 
 def thompson_sampling(
-    f_mean: torch.Tensor, f_var: torch.Tensor,
-    gamma: float = 1., random_state: int = 1
+    f_mean: torch.Tensor, f_var: torch.Tensor, gamma: float = 1.0, random_state: int = 1
 ) -> torch.Tensor:
     """
     Single objective sampling.
@@ -27,12 +26,13 @@ def thompson_sampling(
     """
     device = f_mean.device
     generator = torch.Generator(device=device).manual_seed(random_state)
-    return f_mean + gamma * f_var.sqrt() * torch.randn(*f_var.shape, device=device, generator=generator)
+    return f_mean + gamma * f_var.sqrt() * torch.randn(
+        *f_var.shape, device=device, generator=generator
+    )
 
 
 def thompson_sampling_multivariate(
-    f_mean: torch.Tensor, f_cov: torch.Tensor,
-    gamma: float = 1., random_state: int = 1
+    f_mean: torch.Tensor, f_cov: torch.Tensor, gamma: float = 1.0, random_state: int = 1
 ) -> torch.Tensor:
     """
     Multi objective sampling.
@@ -54,16 +54,13 @@ def thompson_sampling_multivariate(
     device = f_mean.device
     generator = torch.Generator(device=device).manual_seed(random_state)
     return f_mean + gamma * torch.einsum(
-        'bij,bj->bi',
+        "bij,bj->bi",
         torch.linalg.cholesky(f_cov),  # (B, K, K)
-        torch.randn(f_mean.shape, device=device, generator=generator)  # (B, K)
+        torch.randn(f_mean.shape, device=device, generator=generator),  # (B, K)
     )
 
 
-def ucb(
-    f_mean: torch.Tensor, f_var: torch.Tensor,
-    gamma: float = 0.1
-) -> torch.Tensor:
+def ucb(f_mean: torch.Tensor, f_var: torch.Tensor, gamma: float = 0.1) -> torch.Tensor:
     """
     Single objective upper confidence bound.
 
@@ -87,8 +84,7 @@ def ucb(
 
 
 def ei(
-    f_mean: torch.Tensor, f_var: torch.Tensor,
-    curr_best_val: float, gamma: float = 0.01
+    f_mean: torch.Tensor, f_var: torch.Tensor, curr_best_val: float, gamma: float = 0.01
 ) -> torch.Tensor:
     """
     Single-objective expected improvement.
@@ -113,7 +109,7 @@ def ei(
         Shape (B,)
     """
     f_std = torch.sqrt(f_var)
-    first = (f_mean - curr_best_val - gamma)
+    first = f_mean - curr_best_val - gamma
     z = first / f_std
     secnd = dists.Normal(0, 1).cdf(z)
     third = f_std * dists.Normal(0, 1).log_prob(z).exp()
@@ -145,6 +141,6 @@ def scalarize(y: torch.Tensor, weights: torch.Tensor = None) -> torch.Tensor:
     if weights is not None:
         assert weights.shape == (k,)
     else:
-        weights = torch.ones(k) * 1/k
+        weights = torch.ones(k) * 1 / k
 
     return torch.sum(weights[None, :] * y, dim=1)

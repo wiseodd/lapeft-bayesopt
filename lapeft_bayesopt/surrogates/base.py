@@ -36,6 +36,7 @@ class LAPEFTBayesOpt(ABC):
     laplace_config: LaplaceConfig, optional, default=None
         Override configs for Laplace
     """
+
     def __init__(
         self,
         get_model: Callable[[], torch.nn.Module],
@@ -43,13 +44,15 @@ class LAPEFTBayesOpt(ABC):
         data_processor: DataProcessor,
         bnn: Laplace = None,
         laplace_config: LaplaceConfig = None,
-        device: str = 'cuda',
+        device: str = "cuda",
     ) -> None:
         self.get_model = get_model
         self.training_set = training_set
         self.data_processor = data_processor
         self.bnn = bnn
-        self.laplace_config = laplace_config if laplace_config is not None else LaplaceConfig()
+        self.laplace_config = (
+            laplace_config if laplace_config is not None else LaplaceConfig()
+        )
         self.device = device
 
         if self.bnn is None:
@@ -83,9 +86,7 @@ class LAPEFTBayesOpt(ABC):
         """
         raise NotImplementedError
 
-    def condition_on_observations(
-        self, obs: pd.DataFrame
-    ) -> LAPEFTBayesOpt:
+    def condition_on_observations(self, obs: pd.DataFrame) -> LAPEFTBayesOpt:
         NotImplementedError
 
     @property

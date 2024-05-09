@@ -1,6 +1,7 @@
 from __future__ import annotations
 import warnings
-warnings.filterwarnings('ignore')
+
+warnings.filterwarnings("ignore")
 import torch
 from torch import nn, optim
 from torch import distributions as dists
@@ -78,41 +79,41 @@ class LaplaceBoTorch(botorch_model.Model):
     device : {'cpu', 'cuda'}, default='cpu'
         Which device to run the experiment on.
     """
+
     def __init__(
         self,
         get_net: Callable[[], nn.Module],
         train_X: torch.Tensor,
         train_Y: torch.Tensor,
         bnn: Laplace = None,
-        likelihood: str = 'regression',
-        noise_var: float | None =  None,
+        likelihood: str = "regression",
+        noise_var: float | None = None,
         last_layer: bool = False,
-        hess_factorization: str = 'kron',
-        marglik_mode: str = 'posthoc',
+        hess_factorization: str = "kron",
+        marglik_mode: str = "posthoc",
         posthoc_marglik_iters: int = 100,
         online_marglik_freq: int = 50,
         batch_size: int = 20,
         n_epochs: int = 500,
         lr: float = 1e-3,
         wd: float = 5e-4,
-        device: str ='cpu'
+        device: str = "cpu",
     ):
-
         super().__init__()
 
         self.train_X = train_X
         self.train_Y = train_Y
-        assert likelihood in ['regression']  # For now
+        assert likelihood in ["regression"]  # For now
         self.likelihood = likelihood
         self.batch_size = batch_size
         self.last_layer = last_layer
-        self.subset_of_weights = 'last_layer' if last_layer else 'all'
+        self.subset_of_weights = "last_layer" if last_layer else "all"
         self.hess_factorization = hess_factorization
         self.posthoc_marglik_iters = posthoc_marglik_iters
         self.online_marglik_freq = online_marglik_freq
-        assert device in ['cpu', 'cuda']
+        assert device in ["cpu", "cuda"]
         self.device = device
-        assert marglik_mode in ['posthoc', 'online']
+        assert marglik_mode in ["posthoc", "online"]
         self.marglik_mode = marglik_mode
         self.n_epochs = n_epochs
         self.lr = lr
@@ -121,15 +122,14 @@ class LaplaceBoTorch(botorch_model.Model):
         self.bnn = bnn
 
         if type(noise_var) != float and noise_var is not None:
-            raise ValueError('Noise variance must be float >= 0. or None')
+            raise ValueError("Noise variance must be float >= 0. or None")
         if type(noise_var) == float and noise_var < 0:
-            raise ValueError('Noise variance must be >= 0.')
+            raise ValueError("Noise variance must be >= 0.")
         self.noise_var = noise_var
 
         # Initialize Laplace
         if self.bnn is None:
             self._train_model(self._get_train_loader())
-
 
     def posterior(
         self,
@@ -145,8 +145,9 @@ class LaplaceBoTorch(botorch_model.Model):
         else:  # Multi objective
             return dists.MultivariateNormal(mean_y, var_y)
 
-
-    def condition_on_observations(self, X: torch.Tensor, Y: torch.Tensor, **kwargs: Any) -> LaplaceBoTorch:
+    def condition_on_observations(
+        self, X: torch.Tensor, Y: torch.Tensor, **kwargs: Any
+    ) -> LaplaceBoTorch:
         # Append new observation to the current data
         self.train_X = torch.cat([self.train_X, X], dim=0)
         self.train_Y = torch.cat([self.train_Y, Y], dim=0)
@@ -172,9 +173,8 @@ class LaplaceBoTorch(botorch_model.Model):
             n_epochs=self.n_epochs,
             lr=self.lr,
             wd=self.wd,
-            device=self.device
+            device=self.device,
         )
-
 
     def get_prediction(self, test_X: torch.Tensor, joint=True, use_test_loader=False):
         """
@@ -202,14 +202,14 @@ class LaplaceBoTorch(botorch_model.Model):
             if joint is True. Otherwise, `(batch_shape, num_tasks, num_tasks)`.
         """
         if self.bnn is None:
-            raise Exception('Train your model first before making prediction!')
+            raise Exception("Train your model first before making prediction!")
 
         if not use_test_loader:
             mean_y, cov_y = self.bnn(test_X.to(self.device), joint=joint)
         else:
             test_loader = data_utils.DataLoader(
                 data_utils.TensorDataset(test_X, torch.zeros_like(test_X)),
-                batch_size=256
+                batch_size=256,
             )
 
             mean_y, cov_y = [], []
@@ -225,28 +225,29 @@ class LaplaceBoTorch(botorch_model.Model):
 
         return mean_y, cov_y
 
-
     @property
     def num_outputs(self) -> int:
         """The number of outputs of the model."""
         return self.train_Y.shape[-1]
 
-
     def _train_model(self, train_loader):
         del self.bnn
 
-        if self.marglik_mode == 'posthoc':
+        if self.marglik_mode == "posthoc":
             self._posthoc_laplace(train_loader)
         else:
             # Online
             la, model, _, _ = marglik_training(
                 # Ensure that the base net is re-initialized
-                self.get_net(), train_loader, likelihood=self.likelihood,
+                self.get_net(),
+                train_loader,
+                likelihood=self.likelihood,
                 hessian_structure=self.hess_factorization,
-                n_epochs=self.n_epochs, backend=BackPackGGN,
-                optimizer_kwargs={'lr': self.lr},
+                n_epochs=self.n_epochs,
+                backend=BackPackGGN,
+                optimizer_kwargs={"lr": self.lr},
                 scheduler_cls=optim.lr_scheduler.CosineAnnealingLR,
-                scheduler_kwargs={'T_max': self.n_epochs*len(train_loader)},
+                scheduler_kwargs={"T_max": self.n_epochs * len(train_loader)},
                 marglik_frequency=self.online_marglik_freq,
                 # enable_backprop=True  # Important!
             )
@@ -256,12 +257,15 @@ class LaplaceBoTorch(botorch_model.Model):
         if self.noise_var is not None:
             self.bnn.sigma_noise = math.sqrt(self.noise_var)
 
-
     def _posthoc_laplace(self, train_loader):
         net = self.get_net()  # Ensure that the base net is re-initialized
         optimizer = optim.Adam(net.parameters(), lr=self.lr, weight_decay=self.wd)
-        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, self.n_epochs*len(train_loader))
-        loss_func = nn.MSELoss() if self.likelihood == 'regression' else nn.CrossEntropyLoss()
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, self.n_epochs * len(train_loader)
+        )
+        loss_func = (
+            nn.MSELoss() if self.likelihood == "regression" else nn.CrossEntropyLoss()
+        )
 
         for _ in range(self.n_epochs):
             for x, y in train_loader:
@@ -275,28 +279,34 @@ class LaplaceBoTorch(botorch_model.Model):
 
         net.eval()
         self.bnn = Laplace(
-            net, self.likelihood,
+            net,
+            self.likelihood,
             subset_of_weights=self.subset_of_weights,
             hessian_structure=self.hess_factorization,
-            backend=BackPackGGN
+            backend=BackPackGGN,
         )
         self.bnn.fit(train_loader)
 
-        if self.likelihood == 'classification':
+        if self.likelihood == "classification":
             self.bnn.optimize_prior_precision(n_steps=self.posthoc_marglik_iters)
         else:
             # For regression, tune prior precision and observation noise
-            log_prior, log_sigma = torch.ones(1, requires_grad=True), torch.ones(1, requires_grad=True)
+            log_prior, log_sigma = (
+                torch.ones(1, requires_grad=True),
+                torch.ones(1, requires_grad=True),
+            )
             hyper_optimizer = torch.optim.Adam([log_prior, log_sigma], lr=1e-1)
             for _ in range(self.posthoc_marglik_iters):
                 hyper_optimizer.zero_grad()
-                neg_marglik = -self.bnn.log_marginal_likelihood(log_prior.exp(), log_sigma.exp())
+                neg_marglik = -self.bnn.log_marginal_likelihood(
+                    log_prior.exp(), log_sigma.exp()
+                )
                 neg_marglik.backward()
                 hyper_optimizer.step()
-
 
     def _get_train_loader(self):
         return data_utils.DataLoader(
             data_utils.TensorDataset(self.train_X, self.train_Y),
-            batch_size=self.batch_size, shuffle=True
+            batch_size=self.batch_size,
+            shuffle=True,
         )

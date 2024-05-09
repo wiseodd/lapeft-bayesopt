@@ -21,24 +21,24 @@ from prompting import MyPromptBuilder
 
 
 def main():
-    pd_dataset = pd.read_csv('data/redox_mer.csv')
+    pd_dataset = pd.read_csv("data/redox_mer.csv")
     dataset = {
-        'pd_dataset': pd_dataset,
-        'smiles_col': 'SMILES',
-        'obj_col': 'Ered',
-        'maximization': False,
-        'cache_path': f'data/cache/redox-mer/',
-        'opt_val': pd_dataset['Ered'].min()
+        "pd_dataset": pd_dataset,
+        "smiles_col": "SMILES",
+        "obj_col": "Ered",
+        "maximization": False,
+        "cache_path": "data/cache/redox-mer/",
+        "opt_val": pd_dataset["Ered"].min(),
     }
 
     results = run_bayesopt(dataset, n_init_data=10, T=30, randseed=9999)
 
     # Plot
     t = np.arange(len(results))
-    plt.axhline(dataset['opt_val'], color='black', linestyle='dashed')
+    plt.axhline(dataset["opt_val"], color="black", linestyle="dashed")
     plt.plot(t, results)
-    plt.xlabel(r'$t$')
-    plt.ylabel(r'Objective ($\downarrow$)')
+    plt.xlabel(r"$t$")
+    plt.ylabel(r"Objective ($\downarrow$)")
     plt.show()
 
 
@@ -48,22 +48,21 @@ def load_features(dataset):
     Otherwise, compute the said features and cache them.
     Also, transform the problem into maximization.
     """
-    pd_dataset = dataset['pd_dataset']
-    CACHE_PATH = dataset['cache_path']
-    SMILES_COL = dataset['smiles_col']
-    OBJ_COL = dataset['obj_col']
-    MAXIMIZATION = dataset['maximization']
+    pd_dataset = dataset["pd_dataset"]
+    CACHE_PATH = dataset["cache_path"]
+    SMILES_COL = dataset["smiles_col"]
+    OBJ_COL = dataset["obj_col"]
+    MAXIMIZATION = dataset["maximization"]
 
     # If cache exists then just load it, otherwise compute the features
-    if os.path.exists(f'{CACHE_PATH}/cached_feats.bin'):
-        features = torch.load(f'{CACHE_PATH}/cached_feats.bin')
-        targets = torch.load(f'{CACHE_PATH}/cached_targets.bin')
+    if os.path.exists(f"{CACHE_PATH}/cached_feats.bin"):
+        features = torch.load(f"{CACHE_PATH}/cached_feats.bin")
+        targets = torch.load(f"{CACHE_PATH}/cached_targets.bin")
     else:
         # Use the chemistry-specific T5 LLM of Christofidellis et al., 2023
-        tokenizer = get_t5_tokenizer('GT4SD/multitask-text-and-chemistry-t5-base-augm')
+        tokenizer = get_t5_tokenizer("GT4SD/multitask-text-and-chemistry-t5-base-augm")
         llm_feat_extractor = T5Regressor(
-            kind='GT4SD/multitask-text-and-chemistry-t5-base-augm',
-            tokenizer=tokenizer
+            kind="GT4SD/multitask-text-and-chemistry-t5-base-augm", tokenizer=tokenizer
         )
 
         # Need CUDA otherwise will be so slow!
@@ -72,7 +71,7 @@ def load_features(dataset):
         llm_feat_extractor.freeze_params()
 
         # Here, we use the raw SMILES string as the input to the LLM
-        prompt_builder = MyPromptBuilder(kind='just-smiles')
+        prompt_builder = MyPromptBuilder(kind="just-smiles")
         data_processor = RedoxDataProcessor(prompt_builder, tokenizer)
         dataloader = data_processor.get_dataloader(pd_dataset, shuffle=False)
 
@@ -87,16 +86,16 @@ def load_features(dataset):
 
             # Here we transform the target so that the optimization problem
             # always corresponds to maximization
-            targets += list(helpers.y_transform(data['labels'], MAXIMIZATION))
+            targets += list(helpers.y_transform(data["labels"], MAXIMIZATION))
 
         # Cache to files
-        torch.save(features, f'{CACHE_PATH}/cached_feats.bin')
-        torch.save(targets, f'{CACHE_PATH}/cached_targets.bin')
+        torch.save(features, f"{CACHE_PATH}/cached_feats.bin")
+        torch.save(targets, f"{CACHE_PATH}/cached_targets.bin")
 
     return features, targets
 
 
-def run_bayesopt(dataset, n_init_data=10, T=30, device='cpu', randseed=1):
+def run_bayesopt(dataset, n_init_data=10, T=30, device="cpu", randseed=1):
     np.random.seed(randseed)
     torch.manual_seed(randseed)
 
@@ -128,20 +127,21 @@ def run_bayesopt(dataset, n_init_data=10, T=30, device='cpu', randseed=1):
             torch.nn.Linear(50, 50),
             activation(),
             # For multiobjective problems, change 1 -> num_of_objectives
-            torch.nn.Linear(50, 1)
+            torch.nn.Linear(50, 1),
         )
+
     # Or just use https://github.com/wiseodd/laplace-bayesopt for full BoTorch compatibility
     model = LaplaceBoTorch(
-        get_net, train_x, train_y, noise_var=0.001, hess_factorization='kron'
+        get_net, train_x, train_y, noise_var=0.001, hess_factorization="kron"
     )
     model = model.to(device) if model is not None else model
 
     # Prepare for the BO loop
-    MAXIMIZATION = dataset['maximization']
-    best_y = train_y.max().item() # Current best f(x) from the initial dataset
+    MAXIMIZATION = dataset["maximization"]
+    best_y = train_y.max().item()  # Current best f(x) from the initial dataset
     pbar = tqdm.trange(T)
     pbar.set_description(
-        f'[Best f(x) = {helpers.y_transform(best_y, MAXIMIZATION):.3f}]'
+        f"[Best f(x) = {helpers.y_transform(best_y, MAXIMIZATION):.3f}]"
     )
 
     # To store the logged best f(x) over time
@@ -152,7 +152,8 @@ def run_bayesopt(dataset, n_init_data=10, T=30, device='cpu', randseed=1):
         # Don't shuffle so that the ordering is the same as the pandas dataset
         dataloader = data_utils.DataLoader(
             data_utils.TensorDataset(torch.stack(features), torch.stack(targets)),
-            batch_size=256, shuffle=False
+            batch_size=256,
+            shuffle=False,
         )
 
         # Make prediction over all unknown molecules, then use the predictive mean
@@ -182,8 +183,8 @@ def run_bayesopt(dataset, n_init_data=10, T=30, device='cpu', randseed=1):
         # Remember that the cached features are always in maximization format.
         # So here, we transform it back if necessary.
         pbar.set_description(
-            f'[Best f(x) = {helpers.y_transform(best_y, MAXIMIZATION):.3f}, '
-            + f'curr f(x) = {helpers.y_transform(new_y.item(), MAXIMIZATION):.3f}]'
+            f"[Best f(x) = {helpers.y_transform(best_y, MAXIMIZATION):.3f}, "
+            + f"curr f(x) = {helpers.y_transform(new_y.item(), MAXIMIZATION):.3f}]"
         )
 
         # Concatenate the newly acquired (x, y) and then update the surrogate
@@ -195,5 +196,5 @@ def run_bayesopt(dataset, n_init_data=10, T=30, device='cpu', randseed=1):
     return trace_best_y
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

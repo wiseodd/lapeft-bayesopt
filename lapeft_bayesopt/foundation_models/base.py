@@ -24,7 +24,15 @@ class BaseLLMRegressor(nn.Module):
     n_outputs: int
         Number of regression head's outputs. Should equal the number of objectives in BO.
     """
-    def __init__(self, tokenizer, reduction=LLMFeatureType.LAST_TOKEN, feature_dim=None, n_hidden_units=100, n_outputs=1):
+
+    def __init__(
+        self,
+        tokenizer,
+        reduction=LLMFeatureType.LAST_TOKEN,
+        feature_dim=None,
+        n_hidden_units=100,
+        n_outputs=1,
+    ):
         super().__init__()
         self.tokenizer = tokenizer
         self.reduction = reduction
@@ -58,9 +66,13 @@ class BaseLLMRegressor(nn.Module):
         if self.reduction == LLMFeatureType.FIRST_TOKEN:
             feat = feat[:, 0, :]
         elif self.reduction == LLMFeatureType.LAST_TOKEN:
-            feat = extract_last_llm_features(feat, data['input_ids'], self.tokenizer.eos_token_id)
+            feat = extract_last_llm_features(
+                feat, data["input_ids"], self.tokenizer.eos_token_id
+            )
         elif self.reduction == LLMFeatureType.AVERAGE:
-            feat = average_llm_features(feat, data['input_ids'], self.tokenizer.pad_token_id)
+            feat = average_llm_features(
+                feat, data["input_ids"], self.tokenizer.pad_token_id
+            )
 
         # (batch_size, feature_dim)
         feat = feat.squeeze(1)

@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 
 
 def pop_df(df: pd.DataFrame, idx: int):

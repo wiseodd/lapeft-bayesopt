@@ -22,7 +22,7 @@ def extract_last_llm_features(feats, input_ids, eos_token_id):
     # Find the last token position (before padding)
     eos_mask = input_ids.eq(eos_token_id).to(feats.device)
     if len(torch.unique_consecutive(eos_mask.sum(1))) > 1:
-        raise ValueError('All examples must have the same number of <eos> tokens.')
+        raise ValueError("All examples must have the same number of <eos> tokens.")
     batch_size, _, hidden_size = feats.shape
     feats = feats[eos_mask, :]  # (batch_size, hidden_size)
     feats = feats.view(batch_size, -1, hidden_size)[:, -1, :]
@@ -30,7 +30,7 @@ def extract_last_llm_features(feats, input_ids, eos_token_id):
 
 
 def get_llama2_tokenizer(kind):
-    kind = f'meta-llama/{kind.capitalize()}-hf'
+    kind = f"meta-llama/{kind.capitalize()}-hf"
     tokenizer = LlamaTokenizer.from_pretrained(kind)
     return tokenizer
 
@@ -38,4 +38,3 @@ def get_llama2_tokenizer(kind):
 def get_t5_tokenizer(kind):
     tokenizer = T5Tokenizer.from_pretrained(kind, model_max_length=512)
     return tokenizer
-
