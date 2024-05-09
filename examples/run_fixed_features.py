@@ -6,6 +6,7 @@ import tqdm
 from sklearn.utils import shuffle as skshuffle
 import os
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 # Non-finetuned surrogates. The finetuned surrogates are in lapeft_bayesopt.surrogates
 from fixed_feat_surrogate import LaplaceBoTorch
@@ -159,6 +160,8 @@ def run_bayesopt(dataset, n_init_data=10, T=30, device="cpu", randseed=1):
         # Make prediction over all unknown molecules, then use the predictive mean
         # and variance to compute the acquisition function values
         acq_vals = []
+        # The same random seed for Thompson sampling across the batches
+        rstate = int(datetime.now().timestamp())
         for x, y in dataloader:
             # Obtain the posterior predictive distribution p(g_t(x) | D_t)
             posterior = model.posterior(x)
@@ -168,7 +171,7 @@ def run_bayesopt(dataset, n_init_data=10, T=30, device="cpu", randseed=1):
             f_mean, f_var = posterior.mean, posterior.variance
 
             # Feel free to use different acquisition function
-            acq_vals.append(thompson_sampling(f_mean, f_var))
+            acq_vals.append(thompson_sampling(f_mean, f_var, random_state=rstate))
 
         # Pick a molecule (a row in the current dataset) that maximizes the acquisition.
         # Also remove it from the pool (hence we use .pop)

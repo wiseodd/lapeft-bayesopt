@@ -3,6 +3,7 @@ import pandas as pd
 import torch
 import tqdm
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 # Foundation models etc from lapeft_bayesopt
 from lapeft_bayesopt.foundation_models.t5 import T5Regressor
@@ -136,10 +137,12 @@ def run_bayesopt(dataset, tokenizer, data_processor, n_init_data=10, T=30, rands
             desc="[Prediction over dataset]",
             leave=False,
         )
+        # The same random seed for Thompson sampling across the batches
+        rstate = int(datetime.now().timestamp())
         for data in sub_pbar:
             posterior = model.posterior(data)
             f_mean, f_var = posterior.mean, posterior.variance
-            acq_vals.append(thompson_sampling(f_mean, f_var))
+            acq_vals.append(thompson_sampling(f_mean, f_var, random_state=rstate))
         acq_vals = torch.cat(acq_vals, dim=0).cpu().squeeze()
 
         # Pick a molecule (a row in the current pandas dataset) that maximizes the acquisition
