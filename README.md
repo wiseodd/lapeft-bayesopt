@@ -25,9 +25,8 @@ If you use this library, please cite using the following bib entry:
 Best done in a fresh conda/mamba environment (Python < 3.12). Note that the ordering below is important.
 
 1. Install PyTorch (with CUDA; version 2+ is supported): <https://pytorch.org/get-started/locally/>
-2. Install a specific branch of laplace-torch: `pip install git+https://github.com/aleximmer/Laplace.git@mc-subset2`
-3. Install a specific version of ASDL (to compute Hessians): `pip install git+https://github.com/wiseodd/asdl.git@dev`
-4. Clone and install this repo:
+2. Install laplace-torch from the main branch (not from pip!): `pip install git+https://github.com/aleximmer/Laplace.git@main`
+3. Clone and install this repo:
 ```
 git clone git@github.com:wiseodd/lapeft-bayesopt.git
 cd lapeft-bayesopt
