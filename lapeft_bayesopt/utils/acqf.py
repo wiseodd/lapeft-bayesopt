@@ -6,7 +6,12 @@ def thompson_sampling(
     f_mean: torch.Tensor, f_var: torch.Tensor, gamma: float = 1.0, random_state: int = 1
 ) -> torch.Tensor:
     """
-    Single objective sampling.
+    Single objective sampling. Note that this is not the exact Thompson sampling since
+    f(x) is sampled independently. This is the price we pay for computational
+    efficiency since sampling is O(n^3) where n is the size of the candidate set.
+    In BO over molecules, n = num. of molecules in the virtual library.
+    Nevertheless, this independent Thompson sampling has similar exploration-exploitation
+    mechanism as the exact Thompson sampling.
 
     Parameters:
     -----------
@@ -27,7 +32,7 @@ def thompson_sampling(
     device = f_mean.device
     generator = torch.Generator(device=device).manual_seed(random_state)
     return f_mean + gamma * f_var.sqrt() * torch.randn(
-        *f_var.shape, device=device, generator=generator
+        1, device=device, generator=generator
     )
 
 

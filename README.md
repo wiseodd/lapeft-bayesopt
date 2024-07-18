@@ -14,12 +14,13 @@ If you use this library, please cite using the following bib entry:
 ```
 
 ## Table of Contents
- 1. [Setup](#setup)
- 2. [Warmup: Using LLMs as _fixed_ feature extractors](#fixed-feature)
- 3. [Using finetuned LLMs as surrogates](#finetuning)
 
+1.  [Setup](#setup)
+2.  [Warmup: Using LLMs as _fixed_ feature extractors](#fixed-feature)
+3.  [Using finetuned LLMs as surrogates](#finetuning)
 
 <a id="setup"></a>
+
 ## Setup
 
 Best done in a fresh conda/mamba environment (Python < 3.12). Note that the ordering below is important.
@@ -27,6 +28,7 @@ Best done in a fresh conda/mamba environment (Python < 3.12). Note that the orde
 1. Install PyTorch (with CUDA; version 2+ is supported): <https://pytorch.org/get-started/locally/>
 2. Install laplace-torch from the main branch (not from pip!): `pip install git+https://github.com/aleximmer/Laplace.git@main`
 3. Clone and install this repo:
+
 ```
 git clone git@github.com:wiseodd/lapeft-bayesopt.git
 cd lapeft-bayesopt
@@ -34,6 +36,7 @@ pip install -e .
 ```
 
 <a id="fixed-feature"></a>
+
 ## Warmup: Using LLMs as _fixed_ feature extractors
 
 **Full example:** `examples/run_fixed_features.py`
@@ -47,6 +50,7 @@ This package provides an easy way to do the transformation from $x$ to $h(x)$.
 Here are the steps:
 
 1. We assume that your dataset is a pandas dataframe. Inherit `lapeft_bayesopt.problems.DataProcessor`. Example (from `examples/data_processor.py`):
+
 ```python
 import lapeft_bayesopt.problems.DataProcessor
 
@@ -115,8 +119,8 @@ class MyPromptBuilder(PromptBuilder):
 
 5. Finally, we can do the discrete BO loop using those features (cache provided in `examples/data/cache`). See `examples/run_fixed_features.py` for a complete, self-contained example. Note that, at this point, we can use any BO algorithm and surrogate function. E.g. we can just use BoTorch for the BO loop.
 
-
 <a id="finetuning"></a>
+
 ## Using finetuned LLMs as surrogates
 
 **Note:** Please check the previous section first since we will reuse some objects here.
@@ -133,6 +137,7 @@ Currently LoRA is supported and it is very easy to support other PEFT methods, u
 See `examples/run_finetuning.py` for an example. It's actually quite simple to use!
 
 1. First, define the base PEFT-infused LLM in a function so that it is freshly initialized at each call. (Useful since at each BO iteration, the surrogate model is retrained.)
+
 ```python
 def get_model():
     # Load a foundation model with a regression head attached
@@ -162,6 +167,7 @@ def get_model():
 ```
 
 2. Then, we can configure the training and the Laplace approximation of this PEFT surrogate. For full options, check out `lapeft_bayesopt.utils.configs.LaplaceConfig`
+
 ```python
 
 # Config for the Laplace approx over PEFT
@@ -175,6 +181,7 @@ config = LaplaceConfig(
 ```
 
 3. We then initialize a training dataset, e.g. via random sampling from the candidate set (a pandas dataframe). The training dataset should be a list of pandas rows or dicts. Don't forget to remove that row from the original dataset $\mathcal{D}_\mathrm{cand}$. We can use `lapeft_bayesopt.utils.helpers.pop_df()` to do so.
+
 ```python
 dataset_train = []
 while len(dataset_train) < n_init_data:
@@ -186,6 +193,7 @@ while len(dataset_train) < n_init_data:
 ```
 
 4. Next, create the surrogate.
+
 ```python
 
 # Create the surrogate model based on the LLM+PEFT regressor above
@@ -194,7 +202,8 @@ model = LAPEFTBayesOptLoRA(
 )
 ```
 
-5. At each BO iteration, we preprocess the candidate $x$'s and infer the posterior mean and variance of the Laplace approximation over PEFT (LAPEFT!) to compute the acquisition function.
+5. At each BO iteration, we preprocess the candidate $x$'s and infer the posterior mean and variance of the Laplace approximation over PEFT (LAPEFT!) to compute the acquisition function. Here we use an approximate Thompson sampling, but other acquisition function like EI can of course be used.
+
 ```python
 # Preprocess D_cand (`dataset`) so that we can make predictions over it
 dataloader = data_processor.get_dataloader(pd_dataset, batch_size=16, shuffle=False)
@@ -209,6 +218,7 @@ acq_vals = torch.cat(acq_vals, dim=0).cpu().squeeze()
 ```
 
 6. We pick the $x$ that maximizes the acquisition function and remove it from the candidate set. That $x$ is represented by a pandas row that we popped from the candidate set (a pandas dataframe).
+
 ```python
 # Pick an x (a row in the current pandas dataset) that maximizes the acquisition
 idx_best = torch.argmax(acq_vals).item()
@@ -220,6 +230,7 @@ if new_data[OBJ_COL] > best_y:
 ```
 
 7. Finally, we just feed this new data point to the surrogate object. It will append it to the training set and retrain the surrogate for the next iteration.
+
 ```python
 # Update surrogate using the new data point
 model = model.condition_on_observations(new_data)
