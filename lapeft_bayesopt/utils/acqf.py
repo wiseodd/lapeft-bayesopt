@@ -1,9 +1,13 @@
+from __future__ import annotations
 import torch
 import torch.distributions as dists
 
 
 def thompson_sampling(
-    f_mean: torch.Tensor, f_var: torch.Tensor, gamma: float = 1.0, random_state: int = 1
+    f_mean: torch.Tensor,
+    f_var: torch.Tensor,
+    gamma: float = 1.0,
+    random_state: int | None = None,
 ) -> torch.Tensor:
     """
     Single objective sampling. Note that this is not the exact Thompson sampling since
@@ -30,14 +34,22 @@ def thompson_sampling(
         Shape (B,)
     """
     device = f_mean.device
-    generator = torch.Generator(device=device).manual_seed(random_state)
+
+    if random_state is not None:
+        generator = torch.Generator(device=device).manual_seed(random_state)
+    else:
+        generator = None
+
     return f_mean + gamma * f_var.sqrt() * torch.randn(
-        1, device=device, generator=generator
+        *f_mean.shape, device=device, generator=generator
     )
 
 
 def thompson_sampling_multivariate(
-    f_mean: torch.Tensor, f_cov: torch.Tensor, gamma: float = 1.0, random_state: int = 1
+    f_mean: torch.Tensor,
+    f_cov: torch.Tensor,
+    gamma: float = 1.0,
+    random_state: int | None = None,
 ) -> torch.Tensor:
     """
     Multi objective sampling.
@@ -57,7 +69,12 @@ def thompson_sampling_multivariate(
     """
     assert len(f_mean.shape) == 2 and len(f_cov.shape) == 3
     device = f_mean.device
-    generator = torch.Generator(device=device).manual_seed(random_state)
+
+    if random_state is not None:
+        generator = torch.Generator(device=device).manual_seed(random_state)
+    else:
+        generator = None
+
     return f_mean + gamma * torch.einsum(
         "bij,bj->bi",
         torch.linalg.cholesky(f_cov),  # (B, K, K)
