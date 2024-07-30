@@ -2,31 +2,36 @@
 
 This is the accompanying library of the paper [_A Sober Look at LLMs for Material Discovery: Are They Actually Good for Bayesian Optimization Over Molecules?_](https://arxiv.org/abs/2402.05015).
 
-If you use this library, please cite using the following bib entry:
+> [!TIP]
+> If you are looking for the experiment code, check out the sister repo: <https://github.com/wiseodd/llm-chem-sober-look>.
+
+> [!IMPORTANT]
+> If you use this library, please cite using the following bib entry.
 
 ```
-@article{kristiadi2024sober,
+@inproceedings{kristiadi2024sober,
   title={A Sober Look at {LLMs} for Material Discovery: {A}re They Actually Good for {B}ayesian Optimization Over Molecules?},
   author={Kristiadi, Agustinus and Strieth-Kalthoff, Felix and Skreta, Marta and Poupart, Pascal and Aspuru-Guzik, Al\'{a}n and Pleiss, Geoff},
-  journal={arXiv preprint arXiv:2402.05015},
+  booktitle={ICML},
   year={2024}
 }
 ```
 
 ## Table of Contents
 
-1.  [Setup](#setup)
-2.  [Warmup: Using LLMs as _fixed_ feature extractors](#fixed-feature)
-3.  [Using finetuned LLMs as surrogates](#finetuning)
+1. [Setup](#setup)
+2. [Warmup: Using LLMs as _fixed_ feature extractors](#fixed-feature)
+3. [Using finetuned LLMs as surrogates](#finetuning)
 
 <a id="setup"></a>
 
 ## Setup
 
-Best done in a fresh conda/mamba environment (Python < 3.12). Note that the ordering below is important.
+> [!IMPORTANT]
+> Note that the ordering below is important.
 
 1. Install PyTorch (with CUDA; version 2+ is supported): <https://pytorch.org/get-started/locally/>
-2. Install laplace-torch from the main branch (not from pip!): `pip install git+https://github.com/aleximmer/Laplace.git@main`
+2. Install laplace-torch (not from pip!): `pip install git+https://github.com/aleximmer/Laplace.git@0.2`
 3. Clone and install this repo:
 
 ```
