@@ -1,34 +1,37 @@
+from datetime import datetime
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
 import tqdm
-import matplotlib.pyplot as plt
-from datetime import datetime
+
+# Our self-defined problems, using the format provided by lapeft-bayesopt
+from data_processor import RedoxDataProcessor
+
+# We also need Huggingface's peft for the finetuning
+from peft import LoraConfig, get_peft_model
+from prompting import MyPromptBuilder
 
 # Foundation models etc from lapeft_bayesopt
 from lapeft_bayesopt.foundation_models.t5 import T5Regressor
 from lapeft_bayesopt.foundation_models.utils import get_t5_tokenizer
-from lapeft_bayesopt.utils.acqf import thompson_sampling
-from lapeft_bayesopt.utils.configs import LaplaceConfig
-from lapeft_bayesopt.utils import helpers
 
 # The PEFT surrogate
 from lapeft_bayesopt.surrogates.lora import LAPEFTBayesOptLoRA
-
-# We also need Huggingface's peft for the finetuning
-from peft import LoraConfig, get_peft_model
-
-# Our self-defined problems, using the format provided by lapeft-bayesopt
-from data_processor import RedoxDataProcessor
-from prompting import MyPromptBuilder
+from lapeft_bayesopt.utils import helpers
+from lapeft_bayesopt.utils.acqf import thompson_sampling
+from lapeft_bayesopt.utils.configs import LaplaceConfig
 
 
 def main():
+    pd_dataset = pd.read_csv("data/redox_mer.csv")
     dataset = {
-        "pd_dataset": pd.read_csv("data/redox_mer.csv"),
+        "pd_dataset": pd_dataset,
         "smiles_col": "SMILES",
         "obj_col": "Ered",
         "maximization": False,
+        "opt_val": pd_dataset["Ered"].min(),
     }
 
     prompt_builder = MyPromptBuilder(kind="just-smiles")
@@ -55,7 +58,6 @@ def run_bayesopt(dataset, tokenizer, data_processor, n_init_data=10, T=30, rands
     torch.manual_seed(randseed)
 
     pd_dataset = dataset["pd_dataset"]
-    SMILES_COL = dataset["smiles_col"]
     OBJ_COL = dataset["obj_col"]
     MAXIMIZATION = dataset["maximization"]
 
@@ -107,8 +109,14 @@ def run_bayesopt(dataset, tokenizer, data_processor, n_init_data=10, T=30, rands
     )
 
     # Create the surrogate model based on the LLM+PEFT regressor above
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     model = LAPEFTBayesOptLoRA(
-        get_model, dataset_train, data_processor, dtype="float32", laplace_config=config
+        get_model,
+        dataset_train,
+        data_processor,
+        laplace_config=config,
+        device=device,
+        dtype="float32",
     )
 
     # Prepare the BO loop

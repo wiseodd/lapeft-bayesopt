@@ -11,4 +11,4 @@ class MyPromptBuilder(PromptBuilder):
         elif self.kind == "just-smiles":
             return x
         else:
-            return NotImplementedError
+            raise NotImplementedError

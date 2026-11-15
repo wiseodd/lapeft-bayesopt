@@ -1,13 +1,14 @@
 from __future__ import annotations
-import torch
-import pandas as pd
-from laplace import Laplace
 
 from abc import ABC
-from typing import Callable, Tuple, List
+from collections.abc import Callable, MutableMapping
 
-from lapeft_bayesopt.utils.configs import LaplaceConfig
+import pandas as pd
+import torch
+from laplace import BaseLaplace
+
 from lapeft_bayesopt.problems.data_processor import DataProcessor
+from lapeft_bayesopt.utils.configs import LaplaceConfig
 
 
 class LAPEFTBayesOpt(ABC):
@@ -16,12 +17,9 @@ class LAPEFTBayesOpt(ABC):
 
     Parameters:
     -----------
-    get_net: function of None -> torch.nn.Module
-        A function returning the freshly-initialized regression NN
-        attached on top of the LLM feature extractor.
-
-    llm_feature_extractor: torch.nn.Module
-        The LLM feature extractor. It takes strings and outputs feature vectors.
+    get_model: function of None -> torch.nn.Module
+        A function returning a freshly-initialized LLM regressor, i.e. the LLM
+        feature extractor with a regression head on top.
 
     training_set: list of pd.Series
         Initial training data. E.g. obtained via random search.
@@ -40,10 +38,10 @@ class LAPEFTBayesOpt(ABC):
     def __init__(
         self,
         get_model: Callable[[], torch.nn.Module],
-        training_set: List[pd.Series],
+        training_set: list[pd.Series],
         data_processor: DataProcessor,
-        bnn: Laplace = None,
-        laplace_config: LaplaceConfig = None,
+        bnn: BaseLaplace | None = None,
+        laplace_config: LaplaceConfig | None = None,
         device: str = "cuda",
     ) -> None:
         self.get_model = get_model
@@ -64,20 +62,16 @@ class LAPEFTBayesOpt(ABC):
         """
         raise NotImplementedError
 
-    def posterior(
-        self, input_ids: torch.Tensor, attention_mask: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def posterior(self, data: MutableMapping) -> torch.distributions.Normal:
         """
         Given input tensors X, obtain the Laplace posterior predictive distribution
         p(g(X) | X_train, y_train), which is a Gaussian.
 
         Parameters:
         -----------
-        input_ids: torch.Tensor
-            Shape (batch_size, seq_len)
-
-        attention_mask: torch.Tensor
-            Shape (batch_size, seq_len)
+        data: MutableMapping
+            A batch from `DataProcessor.get_dataloader()`, i.e. a dict with
+            `input_ids` and `attention_mask` of shape (batch_size, seq_len)
 
         Returns:
         --------
@@ -86,8 +80,8 @@ class LAPEFTBayesOpt(ABC):
         """
         raise NotImplementedError
 
-    def condition_on_observations(self, obs: pd.DataFrame) -> LAPEFTBayesOpt:
-        NotImplementedError
+    def condition_on_observations(self, obs: pd.Series) -> LAPEFTBayesOpt:
+        raise NotImplementedError
 
     @property
     def num_outputs(self) -> int:

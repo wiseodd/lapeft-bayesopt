@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import torch
 import torch.distributions as dists
 
@@ -138,7 +139,7 @@ def ei(
     return first * secnd + third
 
 
-def scalarize(y: torch.Tensor, weights: torch.Tensor = None) -> torch.Tensor:
+def scalarize(y: torch.Tensor, weights: torch.Tensor | None = None) -> torch.Tensor:
     """
     Scalarize k objective values in y with linear scalarization under the specified weights
     i.e. return sum_{i=1 to k} weights[i] * y[:, i]
@@ -163,6 +164,6 @@ def scalarize(y: torch.Tensor, weights: torch.Tensor = None) -> torch.Tensor:
     if weights is not None:
         assert weights.shape == (k,)
     else:
-        weights = torch.ones(k) * 1 / k
+        weights = torch.ones(k, device=y.device, dtype=y.dtype) / k
 
     return torch.sum(weights[None, :] * y, dim=1)

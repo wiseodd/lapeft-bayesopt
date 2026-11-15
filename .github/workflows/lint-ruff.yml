@@ -1,0 +1,16 @@
+name: ruff-lint
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  ruff-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/ruff-action@v4.1.0
+        with:
+          version-file: uv.lock
+          args: "check"

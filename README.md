@@ -27,24 +27,27 @@ This is the accompanying library of the paper [_A Sober Look at LLMs for Materia
 
 ## Setup
 
-> [!IMPORTANT]
-> Note that the ordering below is important.
-
-1. Install PyTorch (with CUDA; version 2+ is supported): <https://pytorch.org/get-started/locally/>
-2. Install laplace-torch (not from pip!): `pip install git+https://github.com/aleximmer/Laplace.git@0.2`
-3. Clone and install this repo:
+You need Python 3.11 or newer. If you want a specific PyTorch build (e.g. for your CUDA version), install it first: <https://pytorch.org/get-started/locally/>.
+Then install the package from PyPI. This also installs laplace-torch, transformers, and peft:
 
 ```
-git clone git@github.com:wiseodd/lapeft-bayesopt.git
+pip install lapeft-bayesopt
+```
+
+The examples are not part of the package. To run them, clone this repo and install it with the `examples` dependency group, which adds BoTorch, matplotlib, and scikit-learn:
+
+```
+git clone https://github.com/wiseodd/lapeft-bayesopt.git
 cd lapeft-bayesopt
-pip install -e .
+pip install -e . --group examples  # needs pip 25.1 or newer; or: uv sync --group examples
+cd examples
 ```
 
 <a id="fixed-feature"></a>
 
 ## Warmup: Using LLMs as _fixed_ feature extractors
 
-**Full example:** `examples/run_fixed_features.py`
+**Full example:** [`examples/run_fixed_features.py`](https://github.com/wiseodd/lapeft-bayesopt/blob/master/examples/run_fixed_features.py)
 
 The simplest way to incorporate LLMs into BO surrogates is by viewing them as fixed feature extractors.
 Given a data point $x \in \mathcal{D}\_\mathrm{cand}$ from the pool of candidates $\mathcal{D}\_\mathrm{cand} = \\{x_1, \dots, x_n\\}$ we want to find the best from, we wrap it in a textual prompt $c(x)$ and then do a forward pass over the LLM and take the last transformer embedding which has shape `(seq_len, embd_dim)`.
@@ -54,10 +57,11 @@ Doing this for all $x$'s, we can then do the usual discrete BO loop with standar
 This package provides an easy way to do the transformation from $x$ to $h(x)$.
 Here are the steps:
 
-1. We assume that your dataset is a pandas dataframe. Inherit `lapeft_bayesopt.problems.DataProcessor`. Example (from `examples/data_processor.py`):
+1. We assume that your dataset is a pandas dataframe. Inherit `lapeft_bayesopt.problems.data_processor.DataProcessor`. Example (from `examples/data_processor.py`):
 
 ```python
-import lapeft_bayesopt.problems.DataProcessor
+from lapeft_bayesopt.problems.data_processor import DataProcessor
+
 
 class RedoxDataProcessor(DataProcessor):
     """
@@ -79,24 +83,35 @@ class RedoxDataProcessor(DataProcessor):
 
     Objective: Minimize Ered over a list of molecules in SMILES.
     """
+
     def __init__(self, prompt_builder, tokenizer):
         # num_outputs = 1 since this is a single-objective problem
-        super().__init__(prompt_builder=prompt_builder, num_outputs=1, tokenizer=tokenizer)
+        super().__init__(
+            prompt_builder=prompt_builder, num_outputs=1, tokenizer=tokenizer
+        )
 
         # We must specify the four properties below
         # -----------------------------------------
         # `x_col` is the column name of your x
-        self.x_col = 'SMILES'
+        self.x_col = "SMILES"
         # `target_col` is the pandas column name of the property that we want to optimize
-        self.target_col = 'Ered'
+        self.target_col = "Ered"
         # `obj_str` is the textual description of that property (useful for prompting the LLM later)
-        self.obj_str = 'redox potential'
+        self.obj_str = "redox potential"
         # `maximization` is whether we want to maximize or minimize the property
         self.maximization = False
 
-    def _get_columns_to_remove(self) -> List[str]:
+    def _get_columns_to_remove(self) -> list[str]:
         # List all columns of your dataset! We will remove all of them after we preprocess the dataset using Huggingface (we only need the resulting `input_ids` and `labels`)
-        return ['Entry Number', 'File Name', 'SMILES', 'HOMO', 'Ered', 'Gsol', 'Absorption Wavelength']
+        return [
+            "Entry Number",
+            "File Name",
+            "SMILES",
+            "HOMO",
+            "Ered",
+            "Gsol",
+            "Absorption Wavelength",
+        ]
 ```
 
 2. Next, we create prompting schemes $c(x)$. Here's an example (from `examples/prompting.py`):
@@ -104,18 +119,18 @@ class RedoxDataProcessor(DataProcessor):
 ```python
 from lapeft_bayesopt.problems.prompting import PromptBuilder
 
+
 class MyPromptBuilder(PromptBuilder):
     def __init__(self, kind: str):
         self.kind = kind
 
     def get_prompt(self, smiles_str: str, obj_str: str) -> str:
-        if self.kind == 'completion':
-            return f'The estimated {obj_str} of the molecule {smiles_str} is: '
-        elif self.kind == 'just-smiles':
+        if self.kind == "completion":
+            return f"The estimated {obj_str} of the molecule {smiles_str} is: "
+        elif self.kind == "just-smiles":
             return smiles_str
         else:
             return NotImplementedError
-
 ```
 
 3. Then, we need the LLM feature extractor itself. This package has some ready-made ones, e.g., `lapeft_bayesopt.foundation_models.t5.T5Regressor`. Feel free to follow that example to create your own.
@@ -130,7 +145,7 @@ class MyPromptBuilder(PromptBuilder):
 
 **Note:** Please check the previous section first since we will reuse some objects here.
 
-**Full example:** `examples/run_finetuning.py`
+**Full example:** [`examples/run_finetuning.py`](https://github.com/wiseodd/lapeft-bayesopt/blob/master/examples/run_finetuning.py)
 
 We can go one step further by making $h(x)$ trainable.
 This can be done by attaching a PEFT method (LoRA, PrefixTuning, Adapter, etc) to the frozen LLM.
@@ -147,20 +162,19 @@ See `examples/run_finetuning.py` for an example. It's actually quite simple to u
 def get_model():
     # Load a foundation model with a regression head attached
     model = T5Regressor(
-        kind='GT4SD/multitask-text-and-chemistry-t5-base-augm',
-        tokenizer=tokenizer
+        kind="GT4SD/multitask-text-and-chemistry-t5-base-augm", tokenizer=tokenizer
     )
 
     # Attach LoRA or any other PEFT on the foundation model
-    target_modules = ['q', 'v']
+    target_modules = ["q", "v"]
     config = LoraConfig(
         r=4,
         lora_alpha=16,
         target_modules=target_modules,
         lora_dropout=0.1,
-        bias='none',
+        bias="none",
         # This is necessary so that the regression head is also trained
-        modules_to_save=['head'],
+        modules_to_save=["head"],
     )
     lora_model = get_peft_model(model, config)
 
@@ -174,14 +188,13 @@ def get_model():
 2. Then, we can configure the training and the Laplace approximation of this PEFT surrogate. For full options, check out `lapeft_bayesopt.utils.configs.LaplaceConfig`
 
 ```python
-
 # Config for the Laplace approx over PEFT
 config = LaplaceConfig(
     noise_var=0.001,
-    hess_factorization='kron',
-    subset_of_weights='all',
-    marglik_mode='posthoc',
-    prior_prec_structure='layerwise'
+    hess_factorization="kron",
+    subset_of_weights="all",
+    marglik_mode="posthoc",
+    prior_prec_structure="layerwise",
 )
 ```
 
@@ -200,7 +213,6 @@ while len(dataset_train) < n_init_data:
 4. Next, create the surrogate.
 
 ```python
-
 # Create the surrogate model based on the LLM+PEFT regressor above
 model = LAPEFTBayesOptLoRA(
     get_model, dataset_train, data_processor, laplace_config=config

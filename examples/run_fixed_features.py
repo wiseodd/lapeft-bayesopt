@@ -1,24 +1,28 @@
+import os
+from datetime import datetime
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
 import torch.utils.data as data_utils
 import tqdm
-from sklearn.utils import shuffle as skshuffle
-import os
-import matplotlib.pyplot as plt
-from datetime import datetime
-
-# Non-finetuned surrogates. The finetuned surrogates are in lapeft_bayesopt.surrogates
-from fixed_feat_surrogate import LaplaceBoTorch
-
-from lapeft_bayesopt.foundation_models.t5 import T5Regressor
-from lapeft_bayesopt.foundation_models.utils import get_t5_tokenizer
-from lapeft_bayesopt.utils.acqf import thompson_sampling
-from lapeft_bayesopt.utils import helpers
 
 # Our self-defined problems, using the format provided by lapeft-bayesopt
 from data_processor import RedoxDataProcessor
+
+# Non-finetuned surrogates. The finetuned surrogates are in lapeft_bayesopt.surrogates
+from fixed_feat_surrogate import LaplaceBoTorch
 from prompting import MyPromptBuilder
+from sklearn.utils import shuffle as skshuffle
+
+from lapeft_bayesopt.foundation_models.t5 import T5Regressor
+from lapeft_bayesopt.foundation_models.utils import (
+    average_llm_features,
+    get_t5_tokenizer,
+)
+from lapeft_bayesopt.utils import helpers
+from lapeft_bayesopt.utils.acqf import thompson_sampling
 
 
 def main():
@@ -51,8 +55,6 @@ def load_features(dataset):
     """
     pd_dataset = dataset["pd_dataset"]
     CACHE_PATH = dataset["cache_path"]
-    SMILES_COL = dataset["smiles_col"]
-    OBJ_COL = dataset["obj_col"]
     MAXIMIZATION = dataset["maximization"]
 
     # If cache exists then just load it, otherwise compute the features
@@ -66,8 +68,9 @@ def load_features(dataset):
             kind="GT4SD/multitask-text-and-chemistry-t5-base-augm", tokenizer=tokenizer
         )
 
-        # Need CUDA otherwise will be so slow!
-        llm_feat_extractor.cuda()
+        # Use CUDA if possible, otherwise this will be very slow!
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        llm_feat_extractor.to(device)
         llm_feat_extractor.eval()
         llm_feat_extractor.freeze_params()
 
@@ -82,6 +85,10 @@ def load_features(dataset):
         for data in tqdm.tqdm(dataloader):
             with torch.no_grad():
                 feat = llm_feat_extractor.forward_features(data)
+                # (batch_size, seq_len, feature_dim) -> (batch_size, feature_dim)
+                feat = average_llm_features(
+                    feat, data["input_ids"], tokenizer.pad_token_id
+                ).squeeze(1)
 
             features += list(feat.cpu())
 
@@ -90,6 +97,7 @@ def load_features(dataset):
             targets += list(helpers.y_transform(data["labels"], MAXIMIZATION))
 
         # Cache to files
+        os.makedirs(CACHE_PATH, exist_ok=True)
         torch.save(features, f"{CACHE_PATH}/cached_feats.bin")
         torch.save(targets, f"{CACHE_PATH}/cached_targets.bin")
 

@@ -1,6 +1,9 @@
+from __future__ import annotations
+
+from enum import Enum
+
 import torch
 from transformers import LlamaTokenizer, T5Tokenizer
-from enum import Enum
 
 
 class LLMFeatureType(Enum):
@@ -9,7 +12,9 @@ class LLMFeatureType(Enum):
     AVERAGE = 3
 
 
-def average_llm_features(feats, input_ids, pad_token_id):
+def average_llm_features(
+    feats: torch.Tensor, input_ids: torch.Tensor, pad_token_id: int
+) -> torch.Tensor:
     # Masking---0 for everything after <eos> and 1 otherwise
     mask = ~input_ids.eq(pad_token_id).to(feats.device)
     mask = mask[:, :, None].float()  # (batch_size, seq_len, 1)
@@ -18,7 +23,9 @@ def average_llm_features(feats, input_ids, pad_token_id):
     return feats
 
 
-def extract_last_llm_features(feats, input_ids, eos_token_id):
+def extract_last_llm_features(
+    feats: torch.Tensor, input_ids: torch.Tensor, eos_token_id: int
+) -> torch.Tensor:
     # Find the last token position (before padding)
     eos_mask = input_ids.eq(eos_token_id).to(feats.device)
     if len(torch.unique_consecutive(eos_mask.sum(1))) > 1:
@@ -29,12 +36,12 @@ def extract_last_llm_features(feats, input_ids, eos_token_id):
     return feats
 
 
-def get_llama2_tokenizer(kind):
+def get_llama2_tokenizer(kind: str) -> LlamaTokenizer:
     kind = f"meta-llama/{kind.capitalize()}-hf"
     tokenizer = LlamaTokenizer.from_pretrained(kind)
     return tokenizer
 
 
-def get_t5_tokenizer(kind):
+def get_t5_tokenizer(kind: str) -> T5Tokenizer:
     tokenizer = T5Tokenizer.from_pretrained(kind, model_max_length=512)
     return tokenizer

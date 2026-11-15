@@ -1,32 +1,32 @@
 from __future__ import annotations
+
 import warnings
 
 warnings.filterwarnings("ignore")
-import torch
-from torch import nn, optim
-from torch import distributions as dists
-import torch.utils.data as data_utils
-import botorch.models.model as botorch_model
-from botorch.posteriors.gpytorch import GPyTorchPosterior
-from laplace import Laplace
-from laplace.curvature import BackPackGGN
-from laplace.marglik_training import marglik_training
-from typing import *
 import math
+from collections.abc import Callable
+from typing import Any
+
+import botorch.models.model as botorch_model
+import torch
+import torch.utils.data as data_utils
+from laplace import BaseLaplace, Laplace
+from laplace.curvature import CurvlinopsGGN
+from laplace.marglik_training import marglik_training
+from torch import distributions as dists
+from torch import nn, optim
 
 
 class LaplaceBoTorch(botorch_model.Model):
     """
     BoTorch surrogate model with a Laplace-approximated Bayesian
     neural network. The Laplace class is defined in the library
-    laplace-torch; install via:
-    `pip install https://github.com/aleximmer/laplace.git`.
+    laplace-torch; install via `pip install laplace-torch`.
 
     Args:
     -----
     get_net: function None -> nn.Module
         Function that doesn't take any args and return a PyTorch model.
-        Prefer torch.nn.Sequential model due to BackPACK dependency.
         Example usage: `get_net=lambda: nn.Sequential(...)`.
 
     train_X : torch.Tensor
@@ -85,7 +85,7 @@ class LaplaceBoTorch(botorch_model.Model):
         get_net: Callable[[], nn.Module],
         train_X: torch.Tensor,
         train_Y: torch.Tensor,
-        bnn: Laplace = None,
+        bnn: BaseLaplace | None = None,
         likelihood: str = "regression",
         noise_var: float | None = None,
         last_layer: bool = False,
@@ -121,10 +121,8 @@ class LaplaceBoTorch(botorch_model.Model):
         self.get_net = get_net
         self.bnn = bnn
 
-        if type(noise_var) != float and noise_var is not None:
-            raise ValueError("Noise variance must be float >= 0. or None")
-        if type(noise_var) == float and noise_var < 0:
-            raise ValueError("Noise variance must be >= 0.")
+        if noise_var is not None and noise_var < 0:
+            raise ValueError("Noise variance must be >= 0. or None")
         self.noise_var = noise_var
 
         # Initialize Laplace
@@ -134,14 +132,15 @@ class LaplaceBoTorch(botorch_model.Model):
     def posterior(
         self,
         X: torch.Tensor,
-        output_indices: Optional[List[int]] = None,
+        output_indices: list[int] | None = None,
         observation_noise: bool = False,
         posterior_transform=None,
         **kwargs: Any,
-    ) -> GPyTorchPosterior:
+    ) -> dists.Normal | dists.MultivariateNormal:
         mean_y, var_y = self.get_prediction(X, use_test_loader=False, joint=False)
         if len(var_y.shape) != 3:  # Single objective
-            return dists.Normal(mean_y, var_y.squeeze(-1))
+            # `Normal` takes the standard deviation, not the variance
+            return dists.Normal(mean_y, var_y.squeeze(-1).sqrt())
         else:  # Multi objective
             return dists.MultivariateNormal(mean_y, var_y)
 
@@ -244,7 +243,7 @@ class LaplaceBoTorch(botorch_model.Model):
                 likelihood=self.likelihood,
                 hessian_structure=self.hess_factorization,
                 n_epochs=self.n_epochs,
-                backend=BackPackGGN,
+                backend=CurvlinopsGGN,
                 optimizer_kwargs={"lr": self.lr},
                 scheduler_cls=optim.lr_scheduler.CosineAnnealingLR,
                 scheduler_kwargs={"T_max": self.n_epochs * len(train_loader)},
@@ -283,7 +282,7 @@ class LaplaceBoTorch(botorch_model.Model):
             self.likelihood,
             subset_of_weights=self.subset_of_weights,
             hessian_structure=self.hess_factorization,
-            backend=BackPackGGN,
+            backend=CurvlinopsGGN,
         )
         self.bnn.fit(train_loader)
 
@@ -303,6 +302,10 @@ class LaplaceBoTorch(botorch_model.Model):
                 )
                 neg_marglik.backward()
                 hyper_optimizer.step()
+
+            # Store the tuned values without the hyperparameter graph
+            self.bnn.prior_precision = log_prior.detach().exp()
+            self.bnn.sigma_noise = log_sigma.detach().exp()
 
     def _get_train_loader(self):
         return data_utils.DataLoader(
