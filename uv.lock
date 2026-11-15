@@ -1033,7 +1033,7 @@ wheels = [
 
 [[package]]
 name = "lapeft-bayesopt"
-version = "1.1.0"
+version = "0.2"
 source = { editable = "." }
 dependencies = [
     { name = "datasets" },
