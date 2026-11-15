@@ -1,0 +1,87 @@
+[project]
+name = "lapeft-bayesopt"
+version = "1.1.0"
+description = "Bayesian optimization with LLMs, PEFT, and the Laplace approximation"
+authors = [{ name = "Agustinus Kristiadi", email = "agustinus@kristia.de" }]
+dependencies = [
+    "torch>=2.4",
+    "laplace-torch>=0.5.1",
+    "transformers>=4.57",
+    "datasets>=4.0",
+    "peft>=0.17",
+    # Needed to load the T5 and Llama-2 tokenizers
+    "sentencepiece>=0.2",
+    "protobuf>=5.0",
+    "pandas>=2.2",
+    "tqdm>=4.66",
+]
+requires-python = ">=3.11"
+readme = "README.md"
+keywords = [
+    "bayesian-optimization",
+    "laplace-approximation",
+    "llm",
+    "peft",
+    "lora",
+    "molecules",
+]
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+
+[project.urls]
+Homepage = "https://github.com/wiseodd/lapeft-bayesopt"
+Issues = "https://github.com/wiseodd/lapeft-bayesopt/issues"
+Paper = "https://arxiv.org/abs/2402.05015"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2",
+    "pytest-cov>=7.1",
+    "ruff>=0.17.5",
+    "mypy>=2.4",
+]
+# Extra packages needed to run the scripts in `examples/`
+examples = [
+    "botorch>=0.18.1",
+    "matplotlib>=3.9",
+    "scikit-learn>=1.5",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.8,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-root = ""
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+# Pyflakes (`F`) and a subset of pycodestyle (`E`), plus isort (`I`),
+# pyupgrade (`UP`), and pylint errors and warnings (`PLE`, `PLW`).
+select = ["E4", "E7", "E9", "F", "I", "UP", "PLE", "PLW"]
+# Ignore pylint's overwritten loop variable by assignment error
+# Skip "Module level import not at top of file"
+ignore = ["PLW2901", "E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["lapeft_bayesopt"]
+
+[tool.mypy]
+ignore_missing_imports = true

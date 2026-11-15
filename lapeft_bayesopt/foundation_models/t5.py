@@ -1,16 +1,22 @@
-from transformers import T5EncoderModel, T5Config
-from .base import BaseLLMRegressor
-from .utils import LLMFeatureType
+from __future__ import annotations
+
+from collections.abc import Mapping
+
+import torch
+from transformers import T5Config, T5EncoderModel
+
+from lapeft_bayesopt.foundation_models.base import BaseLLMRegressor
+from lapeft_bayesopt.foundation_models.utils import LLMFeatureType
 
 
 class T5Regressor(BaseLLMRegressor):
     def __init__(
         self,
-        kind,
+        kind: str,
         tokenizer,
-        reduction=LLMFeatureType.AVERAGE,
-        n_hidden_units=100,
-        n_outputs=1,
+        reduction: LLMFeatureType = LLMFeatureType.AVERAGE,
+        n_hidden_units: int = 100,
+        n_outputs: int = 1,
     ):
         assert kind in [
             "t5-small",
@@ -34,7 +40,7 @@ class T5Regressor(BaseLLMRegressor):
         self.config = config
         self.feature_extractor = feature_extractor
 
-    def forward_features(self, data):
+    def forward_features(self, data: Mapping) -> torch.Tensor:
         input_ids = data["input_ids"]
         device = next(self.parameters()).device
         input_ids = input_ids.to(device, non_blocking=True)

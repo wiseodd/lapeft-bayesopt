@@ -1,0 +1,29 @@
+name: pytest
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          python-version: ${{ matrix.python-version }}
+          activate-environment: true
+          enable-cache: true
+      - name: Check that the lockfile is up to date
+        run: uv lock --check
+      # `uv sync` installs the CUDA build of torch from the lockfile, which is
+      # several GB. `uv pip` can pick the CPU build instead.
+      - name: Install the project with CPU-only torch
+        run: uv pip install --torch-backend cpu -e . --group dev
+      - name: Run tests
+        run: pytest

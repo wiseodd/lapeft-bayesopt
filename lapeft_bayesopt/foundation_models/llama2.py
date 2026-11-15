@@ -1,22 +1,28 @@
-from transformers import LlamaModel, LlamaConfig
-from .base import BaseLLMRegressor
-from .utils import LLMFeatureType
+from __future__ import annotations
+
+from collections.abc import Mapping
+
+import torch
+from transformers import LlamaConfig, LlamaModel
+
+from lapeft_bayesopt.foundation_models.base import BaseLLMRegressor
+from lapeft_bayesopt.foundation_models.utils import LLMFeatureType
 
 
 class Llama2Regressor(BaseLLMRegressor):
     def __init__(
         self,
-        kind,
+        kind: str,
         tokenizer,
-        reduction=LLMFeatureType.AVERAGE,
-        n_hidden_units=100,
-        n_outputs=1,
+        reduction: LLMFeatureType = LLMFeatureType.AVERAGE,
+        n_hidden_units: int = 100,
+        n_outputs: int = 1,
     ):
         assert kind in ["llama-2-7b", "llama-2-13b", "llama-2-70b"]
 
         kind = f"meta-llama/{kind.capitalize()}-hf"
         config = LlamaConfig.from_pretrained(kind)
-        config.attn_dropout = 0
+        config.attention_dropout = 0.0
         feature_extractor = LlamaModel.from_pretrained(kind, config=config)
 
         super().__init__(
@@ -30,7 +36,7 @@ class Llama2Regressor(BaseLLMRegressor):
         self.config = config
         self.feature_extractor = feature_extractor
 
-    def forward_features(self, data):
+    def forward_features(self, data: Mapping) -> torch.Tensor:
         input_ids = data["input_ids"]
         device = next(self.parameters()).device
         input_ids = input_ids.to(device, non_blocking=True)

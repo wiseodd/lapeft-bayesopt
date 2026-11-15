@@ -1,6 +1,15 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
+
+import torch
 from torch import nn
-from .utils import LLMFeatureType
-from .utils import average_llm_features, extract_last_llm_features
+
+from lapeft_bayesopt.foundation_models.utils import (
+    LLMFeatureType,
+    average_llm_features,
+    extract_last_llm_features,
+)
 
 
 class BaseLLMRegressor(nn.Module):
@@ -25,13 +34,15 @@ class BaseLLMRegressor(nn.Module):
         Number of regression head's outputs. Should equal the number of objectives in BO.
     """
 
+    feature_extractor: nn.Module
+
     def __init__(
         self,
         tokenizer,
-        reduction=LLMFeatureType.LAST_TOKEN,
-        feature_dim=None,
-        n_hidden_units=100,
-        n_outputs=1,
+        reduction: LLMFeatureType = LLMFeatureType.LAST_TOKEN,
+        feature_dim: int = 768,
+        n_hidden_units: int = 100,
+        n_outputs: int = 1,
     ):
         super().__init__()
         self.tokenizer = tokenizer
@@ -47,18 +58,18 @@ class BaseLLMRegressor(nn.Module):
             nn.Linear(self.n_hidden_units, self.n_outputs),
         )
 
-    def forward_features(self, data):
+    def forward_features(self, data: Mapping) -> torch.Tensor:
         """
         Given Huggingface's batch, return the last LLM features
 
         Arguments:
         ----------
-        data: UserDict
+        data: Mapping
             A dict from Huggingface dataloader. E.g. {'input_ids': ..., 'attention_mask': ...}
         """
         raise NotImplementedError
 
-    def forward(self, data):
+    def forward(self, data: Mapping) -> torch.Tensor:
         # (batch_size, seq_len, feature_dim)
         feat = self.forward_features(data)
 
@@ -80,10 +91,10 @@ class BaseLLMRegressor(nn.Module):
         # n_outputs
         return self.head(feat)
 
-    def freeze_params(self):
+    def freeze_params(self) -> None:
         for p in self.feature_extractor.parameters():
             p.requires_grad = False
 
-    def unfreeze_params(self):
+    def unfreeze_params(self) -> None:
         for p in self.feature_extractor.parameters():
             p.requires_grad = True

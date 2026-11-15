@@ -1,0 +1,16 @@
+name: ruff-format
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  ruff-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/ruff-action@v4.1.0
+        with:
+          version-file: uv.lock
+          args: "format --check"

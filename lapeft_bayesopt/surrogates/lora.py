@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -6,31 +8,34 @@ from transformers import logging
 
 logging.set_verbosity_error()
 
-import torch
-from torch import nn, optim
-from laplace import Laplace
-from laplace.marglik_training import marglik_training
 import math
-import pandas as pd
-import tqdm
+from collections.abc import Callable, MutableMapping
 from contextlib import nullcontext
+
+import pandas as pd
+import torch
+import tqdm
+from laplace import BaseLaplace, Laplace
+from laplace.marglik_training import marglik_training
+from torch import nn, optim
 from transformers import get_scheduler
 
-from typing import *
-
+from lapeft_bayesopt.problems.data_processor import DataProcessor
 from lapeft_bayesopt.surrogates.base import LAPEFTBayesOpt
 from lapeft_bayesopt.utils.configs import LaplaceConfig
-from lapeft_bayesopt.problems.data_processor import DataProcessor
+
+# `LaplaceConfig.prior_prec_structure` -> laplace-torch's `PriorStructure`
+_PRIOR_STRUCTURES = {"scalar": "scalar", "layerwise": "layerwise", "diagonal": "diag"}
 
 
 class LAPEFTBayesOptLoRA(LAPEFTBayesOpt):
     def __init__(
         self,
-        get_model: Callable[[], torch.nn.Module],
-        training_set: List[pd.Series],
+        get_model: Callable[[], nn.Module],
+        training_set: list[pd.Series],
         data_processor: DataProcessor,
-        bnn: Laplace = None,
-        laplace_config: LaplaceConfig = None,
+        bnn: BaseLaplace | None = None,
+        laplace_config: LaplaceConfig | None = None,
         device: str = "cuda",
         dtype: str = "float32",
     ):
@@ -40,17 +45,19 @@ class LAPEFTBayesOptLoRA(LAPEFTBayesOpt):
             "bfloat16": torch.bfloat16,
             "float16": torch.float16,
         }[dtype]
+        device_type = torch.device(device).type
         self.ctx = (
             nullcontext()
-            if device == "cpu"
-            else torch.amp.autocast(device_type="cuda", dtype=self.ptdtype)
+            if dtype == "float32"
+            else torch.amp.autocast(device_type=device_type, dtype=self.ptdtype)
         )
-        self.enable_grad_scaler = dtype in ["float16", "bfloat16"]
+        # Only fp16 needs loss scaling, bf16 has the same exponent range as fp32
+        self.scaler = torch.amp.GradScaler(device_type, enabled=dtype == "float16")
         super().__init__(
             get_model, training_set, data_processor, bnn, laplace_config, device
         )
 
-    def train_model(self):
+    def train_model(self) -> None:
         del self.bnn
         cfg = self.laplace_config
 
@@ -60,9 +67,9 @@ class LAPEFTBayesOptLoRA(LAPEFTBayesOpt):
             shuffle=True,
         )
 
-        if self.laplace_config.marglik_mode == "posthoc":
+        if cfg.marglik_mode == "posthoc":
             self._posthoc_laplace(train_loader)
-        else:  # Online (Immer et al., AISTATS 2021)
+        else:  # Online (Immer et al., ICML 2021)
             la, _, _, _ = marglik_training(
                 # Ensure that the base net is re-initialized
                 self.get_model().to(self.device),
@@ -76,23 +83,25 @@ class LAPEFTBayesOptLoRA(LAPEFTBayesOpt):
                 scheduler_cls=optim.lr_scheduler.CosineAnnealingLR,
                 scheduler_kwargs={"T_max": cfg.n_epochs * len(train_loader)},
                 marglik_frequency=cfg.online_marglik_freq,
-                prior_structure=cfg.prior_prec_structure,
-                sigma_noise_fixed=cfg.noise_var,
+                prior_structure=_PRIOR_STRUCTURES[cfg.prior_prec_structure],
+                sigma_noise_init=(
+                    1.0 if cfg.noise_var is None else math.sqrt(cfg.noise_var)
+                ),
+                fix_sigma_noise=cfg.noise_var is not None,
                 progress_bar=True,
             )
             self.bnn = la
 
-        # Override sigma_noise if self.noise_var is not None
-        if cfg.noise_var is not None:
-            self.bnn.sigma_noise = math.sqrt(cfg.noise_var)
+    def posterior(self, data: MutableMapping) -> torch.distributions.Normal:
+        if self.bnn is None:
+            raise RuntimeError("Train the model first before making predictions!")
+        f_mean, f_cov = self.bnn(data)  # (B, K) and (B, K, K)
+        f_mean, f_cov = f_mean.detach(), f_cov.detach()
+        # Marginal variance of each output, plus the observation noise
+        f_var = torch.diagonal(f_cov, dim1=-2, dim2=-1) + self.bnn.sigma_noise**2
+        return torch.distributions.Normal(f_mean, f_var.sqrt())
 
-    def posterior(self, data):
-        f_mean, f_var = self.bnn(data)  # (B, 1) and (B, 1, 1)
-        f_mean, f_var = f_mean.detach(), f_var.detach()
-        f_var = f_var.squeeze(-1) + self.bnn.sigma_noise**2
-        return torch.distributions.Normal(f_mean, f_var)
-
-    def condition_on_observations(self, obs):
+    def condition_on_observations(self, obs: pd.Series) -> LAPEFTBayesOptLoRA:
         self.training_set.append(obs)
         del self.bnn
 
@@ -106,13 +115,13 @@ class LAPEFTBayesOptLoRA(LAPEFTBayesOpt):
             dtype=self.dtype,
         )
 
-    def _posthoc_laplace(self, train_loader):
+    def _posthoc_laplace(self, train_loader: torch.utils.data.DataLoader) -> None:
         cfg = self.laplace_config
-        model = self.get_model().to(
-            self.device
-        )  # Ensure that the base net is re-initialized
+        # Ensure that the base net is re-initialized
+        model = self.get_model().to(self.device)
         model.train()
         loss_func = nn.MSELoss()
+        scaler = self.scaler
 
         # Use different hyperparams for the LoRA's and regression head's weights
         lora_params = [
@@ -139,7 +148,6 @@ class LAPEFTBayesOptLoRA(LAPEFTBayesOpt):
             num_warmup_steps=0,
             num_training_steps=num_training_steps,
         )
-        scaler = torch.cuda.amp.GradScaler(enabled=self.enable_grad_scaler)
 
         # Train both LoRA's and regression head's weights
         for _ in tqdm.trange(
@@ -206,34 +214,27 @@ class LAPEFTBayesOptLoRA(LAPEFTBayesOpt):
         model.eval()
 
         # Fit a Laplace approximation over both LoRA's and regression head's weights
+        laplace_kwargs = {}
         if cfg.subset_of_weights == "last_layer":
-            self.bnn = Laplace(
-                model,
-                likelihood="regression",
-                subset_of_weights=cfg.subset_of_weights,
-                hessian_structure=cfg.hess_factorization,
-                sigma_noise=1 if cfg.noise_var is None else math.sqrt(cfg.noise_var),
-                last_layer_name=cfg.last_layer_name,
-                backend=cfg.hessian_backend,
-            )
-        else:
-            self.bnn = Laplace(
-                model,
-                likelihood="regression",
-                subset_of_weights=cfg.subset_of_weights,
-                hessian_structure=cfg.hess_factorization,
-                sigma_noise=1 if cfg.noise_var is None else math.sqrt(cfg.noise_var),
-                backend=cfg.hessian_backend,
-            )
+            laplace_kwargs["last_layer_name"] = cfg.last_layer_name
+        self.bnn = Laplace(
+            model,
+            likelihood="regression",
+            subset_of_weights=cfg.subset_of_weights,
+            hessian_structure=cfg.hess_factorization,
+            sigma_noise=1 if cfg.noise_var is None else math.sqrt(cfg.noise_var),
+            backend=cfg.hessian_backend,
+            **laplace_kwargs,
+        )
         self.bnn.fit(train_loader)
 
-        prior_prec_shapes = {
-            "scalar": 1,
-            "layerwise": self.bnn.n_layers,
-            "diagonal": self.bnn.n_params,
-        }
         if cfg.noise_var is None:
             # Tune prior precision and observation noise
+            prior_prec_shapes = {
+                "scalar": 1,
+                "layerwise": self.bnn.n_layers,
+                "diagonal": self.bnn.n_params,
+            }
             log_prior = torch.ones(
                 prior_prec_shapes[cfg.prior_prec_structure],
                 requires_grad=True,
@@ -254,9 +255,8 @@ class LAPEFTBayesOptLoRA(LAPEFTBayesOpt):
             self.bnn.sigma_noise = log_sigma.detach().exp()
         else:
             # Tune only prior precision
-            init_prior_prec = torch.ones(
-                prior_prec_shapes[cfg.prior_prec_structure], device=self.device
-            )
             self.bnn.optimize_prior_precision(
-                n_steps=cfg.posthoc_marglik_iters, init_prior_prec=init_prior_prec
+                pred_type="glm",
+                n_steps=cfg.posthoc_marglik_iters,
+                prior_structure=_PRIOR_STRUCTURES[cfg.prior_prec_structure],
             )

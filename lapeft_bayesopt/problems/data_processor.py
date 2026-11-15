@@ -1,14 +1,12 @@
-import torch
-import torch.utils.data as data_utils
+from __future__ import annotations
+
 import pandas as pd
-from transformers import DataCollatorWithPadding
-from transformers import PreTrainedTokenizer
+import torch.utils.data as data_utils
 from datasets import Dataset  # huggingface datasets
-from typing import *
-
-from .prompting import PromptBuilder
-
 from datasets.utils.logging import disable_progress_bar
+from transformers import DataCollatorWithPadding, PreTrainedTokenizerBase
+
+from lapeft_bayesopt.problems.prompting import PromptBuilder
 
 disable_progress_bar()
 
@@ -22,25 +20,25 @@ class DataProcessor:
         self,
         prompt_builder: PromptBuilder,
         num_outputs: int,
-        tokenizer: PreTrainedTokenizer,
+        tokenizer: PreTrainedTokenizerBase,
     ):
         self.prompt_builder = prompt_builder
         self.num_outputs = num_outputs
         self.tokenizer = tokenizer
 
         # To be defined in subclasses
-        self.x_col = None
-        self.target_col = None
-        self.obj_str = None
-        self.maximization = None
+        self.x_col: str | None = None
+        self.target_col: str | list[str] | None = None
+        self.obj_str: str | None = None
+        self.maximization: bool | list[bool] | None = None
 
     def get_dataloader(
         self,
         pandas_dataset: pd.DataFrame,
-        batch_size=16,
-        max_seq_len=512,
-        shuffle=False,
-        append_eos=True,
+        batch_size: int = 16,
+        max_seq_len: int = 512,
+        shuffle: bool = False,
+        append_eos: bool = True,
     ) -> data_utils.DataLoader:
         dataset = Dataset.from_pandas(pandas_dataset)
 
@@ -48,7 +46,13 @@ class DataProcessor:
             prompt = self.prompt_builder.get_prompt(row[self.x_col], self.obj_str)
             if append_eos:
                 prompt += self.tokenizer.eos_token
-            out = self.tokenizer(prompt, truncation=True, max_length=max_seq_len)
+            out = dict(self.tokenizer(prompt, truncation=True, max_length=max_seq_len))
+            # Some tokenizers (e.g. T5 in transformers v5) add <eos> on their own,
+            # even after the one we appended. Keep only one.
+            ids = out["input_ids"]
+            eos_id = self.tokenizer.eos_token_id
+            if append_eos and len(ids) >= 2 and ids[-1] == ids[-2] == eos_id:
+                out = {k: v[:-1] for k, v in out.items()}
             out["labels"] = self._get_targets(row)
             return out
 
@@ -63,7 +67,7 @@ class DataProcessor:
             collate_fn=DataCollatorWithPadding(self.tokenizer),
         )
 
-    def _get_targets(self, row: Union[pd.Series, dict]) -> torch.Tensor:
+    def _get_targets(self, row: pd.Series | dict) -> list[float]:
         """
         Arguments:
         ----------
@@ -72,15 +76,15 @@ class DataProcessor:
 
         Returns:
         --------
-        targets: torch.Tensor
-            Regression target(s). Shape (self.num_outputs,).
+        targets: list of floats
+            Regression target(s). Length self.num_outputs.
         """
         if isinstance(self.target_col, list):
             return [row[col] for col in self.target_col]
         else:
             return [row[self.target_col]]
 
-    def _get_columns_to_remove(self) -> List[str]:
+    def _get_columns_to_remove(self) -> list[str]:
         """
         Returns:
         --------

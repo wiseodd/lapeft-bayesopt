@@ -1,0 +1,21 @@
+name: mypy
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          activate-environment: true
+          enable-cache: true
+      # CPU-only torch to skip the multi-GB CUDA wheels, see pytest.yml
+      - name: Install the project with CPU-only torch
+        run: uv pip install --torch-backend cpu -e . --group dev
+      - name: Run mypy
+        run: mypy lapeft_bayesopt

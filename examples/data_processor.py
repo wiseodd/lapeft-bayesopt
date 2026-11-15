@@ -1,5 +1,4 @@
 from lapeft_bayesopt.problems.data_processor import DataProcessor
-from typing import *
 
 
 class RedoxDataProcessor(DataProcessor):
@@ -30,7 +29,7 @@ class RedoxDataProcessor(DataProcessor):
         self.obj_str = "redox potential"
         self.maximization = False
 
-    def _get_columns_to_remove(self) -> List[str]:
+    def _get_columns_to_remove(self) -> list[str]:
         return [
             "Entry Number",
             "File Name",
@@ -70,7 +69,7 @@ class MultiRedoxDataProcessor(DataProcessor):
         self.obj_str = "redox potential and solvation energy"
         self.maximization = [False, False]
 
-    def _get_columns_to_remove(self) -> List[str]:
+    def _get_columns_to_remove(self) -> list[str]:
         return [
             "Entry Number",
             "File Name",
