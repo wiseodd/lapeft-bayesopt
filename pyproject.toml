@@ -1,43 +1,43 @@
 [project]
 name = "lapeft-bayesopt"
-version = "1.1.0"
+version = "0.2"
 description = "Bayesian optimization with LLMs, PEFT, and the Laplace approximation"
 authors = [{ name = "Agustinus Kristiadi", email = "agustinus@kristia.de" }]
 dependencies = [
-    "torch>=2.4",
-    "laplace-torch>=0.5.1",
-    "transformers>=4.57",
-    "datasets>=4.0",
-    "peft>=0.17",
-    # Needed to load the T5 and Llama-2 tokenizers
-    "sentencepiece>=0.2",
-    "protobuf>=5.0",
-    "pandas>=2.2",
-    "tqdm>=4.66",
+  "torch>=2.4",
+  "laplace-torch>=0.5.1",
+  "transformers>=4.57",
+  "datasets>=4.0",
+  "peft>=0.17",
+  # Needed to load the T5 and Llama-2 tokenizers
+  "sentencepiece>=0.2",
+  "protobuf>=5.0",
+  "pandas>=2.2",
+  "tqdm>=4.66",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
 keywords = [
-    "bayesian-optimization",
-    "laplace-approximation",
-    "llm",
-    "peft",
-    "lora",
-    "molecules",
+  "bayesian-optimization",
+  "laplace-approximation",
+  "llm",
+  "peft",
+  "lora",
+  "molecules",
 ]
 license = "MIT"
 license-files = ["LICENSE"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Science/Research",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Scientific/Engineering :: Chemistry",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Programming Language :: Python :: 3.14",
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Chemistry",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 
 [project.urls]
@@ -47,16 +47,16 @@ Paper = "https://arxiv.org/abs/2402.05015"
 
 [dependency-groups]
 dev = [
-    "pytest>=9.2",
-    "pytest-cov>=7.1",
-    "ruff>=0.17.5",
-    "mypy>=2.4",
+  "pytest>=9.2",
+  "pytest-cov>=7.1",
+  "ruff>=0.17.5",
+  "mypy>=2.4",
 ]
 # Extra packages needed to run the scripts in `examples/`
 examples = [
-    "botorch>=0.18.1",
-    "matplotlib>=3.9",
-    "scikit-learn>=1.5",
+  "botorch>=0.18.1",
+  "matplotlib>=3.9",
+  "scikit-learn>=1.5",
 ]
 
 [build-system]
